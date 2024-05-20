@@ -1,63 +1,46 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""
-Для своего индивидуального задания лабораторной работы 2.23 необходимо
-организовать конвейер, в котором сначала в отдельном потоке вычисляется
-значение первой функции, после чего результаты вычисления должны передаваться
-второй функции, вычисляемой в отдельном потоке. Потоки для вычисления значений
-двух функций должны запускаться одновременно.
-"""
-
-
 import math
-import threading
+import multiprocessing
 
+"""
+Задача:
+Для своего индивидуального задания лабораторной работы 2.23 необходимо
+реализовать вычисление значений в двух функций в отдельных процессах.
+"""
 
 e = 10e-7
-stepArray = [1]
+stepArray = multiprocessing.Array('d', [1])
 
 
 def calculateY(x):
     return 0.5 * math.log((x + 1) / (x - 1))
 
 
-def first_function(x, n, results, barrier):
-    result = (2 * n - 1) * x**(2 * n - 1)
-    results[n] = result
-    barrier.wait()
+def calculate_step(step, index, x, n):
+    step[index] = 1
 
+    def firstStep():
+        step[index] *= (2 * n - 1)
 
-def second_function(step, index, results, barrier):
-    barrier.wait()
-    result = 1 / results[index]
-    step[index] = result
+    def secondStep():
+        step[index] *= x**(2 * n - 1)
+
+    def thirdStep():
+        step[index] **= -1
+
+    with multiprocessing.Pool(processes=3) as pool:
+        pool.map(lambda f: f(), [firstStep, secondStep, thirdStep])
 
 
 def main():
     x = 3
     index = 0
-    results = {}
-    barrier = threading.Barrier(2)
 
     while abs(stepArray[index]) > e:
         stepArray.append(0)
-
-        firstThread = threading.Thread(
-            target=first_function,
-            args=(x, index + 1, results, barrier)
-        )
-        secondThread = threading.Thread(
-            target=second_function,
-            args=(stepArray, index + 1, results, barrier)
-        )
-
-        firstThread.start()
-        secondThread.start()
-
-        firstThread.join()
-        secondThread.join()
-
+        calculate_step(stepArray, index + 1, x, index + 1)
         index += 1
 
     S = sum(stepArray) - 1
